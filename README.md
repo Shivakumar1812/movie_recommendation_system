@@ -150,9 +150,9 @@ Movie_rec/
 
 For questions, suggestions, or collaboration opportunities:
 
-- 📫 **Email**: your.email@example.com
-- 💼 **LinkedIn**: [Your LinkedIn Profile](https://linkedin.com/in/yourprofile)
-- 🐙 **GitHub**: [@skg1312](https://github.com/skg1312)
+- 📫 **Email**: skg.13.edu@gmail.com
+- 💼 **LinkedIn**: [skg1312](https://linkedin.com/in/skg1312)
+- 🐙 **GitHub**: [skg1312](https://github.com/skg1312)
 
 ---
 
