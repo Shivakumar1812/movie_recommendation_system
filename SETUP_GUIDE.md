@@ -3,9 +3,29 @@
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
+
+**Option A: Direct Installation (Recommended)**
+```bash
+# Install core build tools first
+pip install --upgrade setuptools wheel pip
+
+# Install packages individually for better compatibility
+pip install numpy pandas
+pip install scikit-learn scipy
+pip install xgboost lightgbm
+pip install matplotlib seaborn plotly
+pip install jupyter ipykernel tqdm joblib
+```
+
+**Option B: From Requirements File**
 ```bash
 pip install -r requirements.txt
 ```
+
+**If you encounter build errors:**
+1. Make sure you have Microsoft C++ Build Tools installed
+2. Try installing packages individually as shown in Option A
+3. Use `pip install --no-cache-dir package_name` for problematic packages
 
 ### 2. Download MovieLens Dataset
 1. Visit: https://grouplens.org/datasets/movielens/20m/
