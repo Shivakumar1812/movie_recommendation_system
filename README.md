@@ -91,6 +91,10 @@ Movie_rec/
    # Quick demo with synthetic data
    python demo.py
    
+   # Web Interface (Streamlit App)
+   python launch_app.py
+   # OR directly: streamlit run streamlit_app.py
+   
    # Full pipeline with real data
    python main.py preprocess
    python main.py train
@@ -101,6 +105,34 @@ Movie_rec/
    ```bash
    jupyter notebook notebooks/movie_recommendation_analysis.ipynb
    ```
+
+## 🌐 Web Interface
+
+The system includes a beautiful **Streamlit web application** for interactive exploration:
+
+### Features:
+- **📊 Interactive Dashboard**: Real-time analytics and visualizations
+- **🎯 Personalized Recommendations**: Get recommendations for any user
+- **👤 User Profiles**: Analyze individual user behavior and preferences
+- **📈 Analytics**: Comprehensive insights into ratings, movies, and users
+- **🎨 Modern UI**: Netflix-inspired design with responsive layout
+
+### Launch the Web App:
+```bash
+# Easy launcher (recommended)
+python launch_app.py
+
+# Direct Streamlit command
+streamlit run streamlit_app.py
+```
+
+The app will automatically open in your browser at `http://localhost:8501`
+
+### Web Interface Screenshots:
+- **Dashboard**: Overview of system metrics and rating distributions
+- **Recommendations**: Interactive recommendation generation with multiple algorithms
+- **User Analysis**: Detailed user profiles with rating patterns
+- **Analytics**: Advanced insights and data visualizations
 
 ## 📈 Performance Results
 
@@ -121,6 +153,8 @@ Movie_rec/
 - **📊 Comprehensive Metrics**: RMSE, MAPE, Precision@K, Recall@K
 - **🔄 Cross-Validation**: 5-fold CV for reliable performance estimates
 - **📈 Feature Engineering**: 25+ intelligent features capturing user behavior
+- **🌐 Web Interface**: Interactive Streamlit dashboard for easy exploration
+- **📱 Responsive Design**: Works on desktop, tablet, and mobile devices
 
 ## 🔮 Future Enhancements
 

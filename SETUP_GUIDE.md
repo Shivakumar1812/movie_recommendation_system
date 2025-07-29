@@ -37,12 +37,93 @@ pip install -r requirements.txt
 # Quick demo (works without data)
 python demo.py
 
-# Or interactive demo
-python demo.py --interactive
+# Web Interface - Interactive Dashboard
+python launch_app.py
+# This will open http://localhost:8501 in your browser
+
+# Or launch Streamlit directly
+streamlit run streamlit_app.py
 
 # Full pipeline
 python main.py --action demo
 ```
+
+## 🌐 Web Interface (Streamlit App)
+
+The system includes a comprehensive web dashboard built with Streamlit:
+
+### Features:
+- **📊 System Overview**: Real-time metrics and data visualization
+- **🎯 Interactive Recommendations**: Generate personalized recommendations
+- **👤 User Profile Analysis**: Detailed user behavior insights  
+- **📈 Analytics Dashboard**: Advanced data exploration and insights
+- **🎨 Modern UI**: Netflix-inspired responsive design
+
+### Launch Options:
+
+**Option 1: Easy Launcher (Recommended)**
+```bash
+python launch_app.py
+```
+
+**Option 2: Direct Streamlit Command**
+```bash
+streamlit run streamlit_app.py
+```
+
+**Option 3: Custom Configuration**
+```bash
+streamlit run streamlit_app.py --server.port 8502 --server.headless false
+```
+
+### Accessing the App:
+- **Local URL**: http://localhost:8501
+- **Network URL**: http://your-ip:8501 (for sharing on local network)
+- **Automatic Browser**: The launcher will open your default browser automatically
+
+### Web Interface Navigation:
+
+1. **🏠 Overview Tab**:
+   - System statistics and metrics
+   - Rating distribution charts
+   - Genre popularity analysis
+   - Data quality indicators
+
+2. **🎯 Recommendations Tab**:
+   - User selection dropdown
+   - Algorithm choice (Hybrid/Similarity/ML)
+   - Number of recommendations slider
+   - Real-time recommendation generation
+   - Detailed recommendation explanations
+
+3. **👤 User Profile Tab**:
+   - Individual user analysis
+   - Rating history and patterns
+   - User behavior insights
+   - Preference visualization
+
+4. **📈 Analytics Tab**:
+   - Rating trends over time
+   - Movie popularity analysis
+   - Genre performance metrics
+   - User behavior patterns
+
+### Troubleshooting Web Interface:
+
+1. **Port Already in Use**:
+   ```bash
+   streamlit run streamlit_app.py --server.port 8502
+   ```
+
+2. **Browser Doesn't Open**:
+   - Manually navigate to http://localhost:8501
+   - Check firewall settings
+   - Try different browser
+
+3. **Slow Loading**:
+   - Large datasets may take time to load
+   - Consider using sample data for faster performance
+   - Check system memory usage
 
 ## 📊 Complete Pipeline
 

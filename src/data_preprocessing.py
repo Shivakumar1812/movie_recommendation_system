@@ -167,13 +167,14 @@ class DataPreprocessor:
         
         return stats
     
-    def create_user_item_matrix(self, min_user_ratings: int = 20, min_movie_ratings: int = 20) -> pd.DataFrame:
+    def create_user_item_matrix(self, min_user_ratings: int = 50, min_movie_ratings: int = 50, max_users: int = 10000) -> pd.DataFrame:
         """
-        Create a user-item matrix for collaborative filtering.
+        Create a user-item matrix for collaborative filtering with memory optimization.
         
         Args:
             min_user_ratings: Minimum number of ratings a user must have
             min_movie_ratings: Minimum number of ratings a movie must have
+            max_users: Maximum number of users to include (for memory management)
             
         Returns:
             User-item matrix as DataFrame
@@ -181,17 +182,44 @@ class DataPreprocessor:
         if self.processed_df is None:
             raise ValueError("Data not processed. Call clean_data() first.")
         
+        print(f"Creating user-item matrix with memory optimization...")
+        print(f"Filters: min_user_ratings={min_user_ratings}, min_movie_ratings={min_movie_ratings}, max_users={max_users}")
+        
         # Filter users and movies with minimum number of ratings
         user_counts = self.processed_df['userId'].value_counts()
         movie_counts = self.processed_df['movieId'].value_counts()
         
-        active_users = user_counts[user_counts >= min_user_ratings].index
+        # Get most active users (limited to max_users for memory)
+        active_users = user_counts[user_counts >= min_user_ratings].head(max_users).index
         popular_movies = movie_counts[movie_counts >= min_movie_ratings].index
+        
+        print(f"Selected {len(active_users):,} users and {len(popular_movies):,} movies")
         
         filtered_df = self.processed_df[
             (self.processed_df['userId'].isin(active_users)) &
             (self.processed_df['movieId'].isin(popular_movies))
         ]
+        
+        print(f"Filtered dataset size: {len(filtered_df):,} ratings")
+        
+        # Estimate memory usage before creating matrix
+        estimated_size_gb = (len(active_users) * len(popular_movies) * 8) / (1024**3)
+        print(f"Estimated matrix memory usage: {estimated_size_gb:.2f} GB")
+        
+        if estimated_size_gb > 2.0:
+            print(f"⚠️  Warning: Large matrix detected. Reducing size...")
+            # Further reduce if still too large
+            max_users = min(max_users, 5000)
+            max_movies = min(len(popular_movies), 5000)
+            
+            active_users = active_users[:max_users]
+            popular_movies = popular_movies[:max_movies]
+            
+            filtered_df = self.processed_df[
+                (self.processed_df['userId'].isin(active_users)) &
+                (self.processed_df['movieId'].isin(popular_movies))
+            ]
+            print(f"Reduced to {len(active_users):,} users and {len(popular_movies):,} movies")
         
         # Create user-item matrix
         user_item_matrix = filtered_df.pivot_table(
