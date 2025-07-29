@@ -73,8 +73,8 @@ Movie_rec/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/Movie_rec.git
-   cd Movie_rec
+   git clone https://github.com/skg1312/Movie_Recommendation_System.git
+   cd Movie_Recommendation_System
    ```
 
 2. **Install dependencies**
@@ -152,7 +152,7 @@ For questions, suggestions, or collaboration opportunities:
 
 - 📫 **Email**: your.email@example.com
 - 💼 **LinkedIn**: [Your LinkedIn Profile](https://linkedin.com/in/yourprofile)
-- 🐙 **GitHub**: [@yourusername](https://github.com/yourusername)
+- 🐙 **GitHub**: [@skg1312](https://github.com/skg1312)
 
 ---
 
