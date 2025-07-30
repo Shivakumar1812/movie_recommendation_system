@@ -522,6 +522,292 @@ def display_analytics_dashboard(ratings_df, movies_df):
             )
             st.plotly_chart(fig, use_container_width=True)
 
+def display_new_user_interface(engine, ratings_df, movies_df):
+    """Display interface for new users to get initial recommendations."""
+    st.header("🆕 New User Recommendations")
+    st.markdown("Welcome! Get personalized movie recommendations by sharing your preferences.")
+    
+    # Initialize session state for new user
+    if 'new_user_ratings' not in st.session_state:
+        st.session_state.new_user_ratings = {}
+    if 'new_user_genres' not in st.session_state:
+        st.session_state.new_user_genres = []
+    
+    tab1, tab2, tab3 = st.tabs(["🎬 Rate Movies", "🎭 Select Genres", "🎯 Get Recommendations"])
+    
+    with tab1:
+        st.subheader("🎬 Rate Some Movies")
+        st.markdown("Rate a few movies to help us understand your taste (optional but recommended)")
+        
+        # Get sample movies for rating
+        if movies_df is not None and ratings_df is not None:
+            # Get popular movies for new users to rate
+            popular_movie_ids = get_popular_movies_for_rating(ratings_df, movies_df, 20)
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown("**Select movies you've seen and rate them:**")
+                
+                for movie_id in popular_movie_ids:
+                    movie_info = movies_df[movies_df['movieId'] == movie_id]
+                    if not movie_info.empty:
+                        movie_title = movie_info.iloc[0]['title']
+                        
+                        # Create a unique key for each movie
+                        rating_key = f"rating_{movie_id}"
+                        
+                        # Rating slider
+                        rating = st.select_slider(
+                            f"🎬 **{movie_title}**",
+                            options=[0, 1, 2, 3, 4, 5],
+                            value=0,
+                            key=rating_key,
+                            format_func=lambda x: "Not Seen" if x == 0 else f"{x} ⭐",
+                            help="Rate this movie if you've seen it"
+                        )
+                        
+                        # Update session state
+                        if rating > 0:
+                            st.session_state.new_user_ratings[movie_id] = rating
+                        elif movie_id in st.session_state.new_user_ratings:
+                            del st.session_state.new_user_ratings[movie_id]
+            
+            with col2:
+                st.markdown("**Your Ratings:**")
+                if st.session_state.new_user_ratings:
+                    for movie_id, rating in st.session_state.new_user_ratings.items():
+                        movie_title = movies_df[movies_df['movieId'] == movie_id]['title'].iloc[0]
+                        st.write(f"{'⭐' * rating} {movie_title}")
+                    
+                    avg_rating = np.mean(list(st.session_state.new_user_ratings.values()))
+                    st.metric("Your Average Rating", f"{avg_rating:.1f} ⭐")
+                else:
+                    st.info("No ratings yet. Rate some movies above!")
+        else:
+            st.info("Movie data not available. You can still select genres in the next tab.")
+    
+    with tab2:
+        st.subheader("🎭 Select Your Favorite Genres")
+        st.markdown("Choose genres you enjoy to get better recommendations")
+        
+        # Available genres
+        available_genres = [
+            'Action', 'Adventure', 'Animation', 'Children', 'Comedy', 'Crime',
+            'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical',
+            'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
+        ]
+        
+        # Genre selection with multiselect
+        selected_genres = st.multiselect(
+            "🎭 Select your favorite genres:",
+            available_genres,
+            default=st.session_state.new_user_genres,
+            help="Choose 3-5 genres you enjoy most"
+        )
+        
+        # Update session state
+        st.session_state.new_user_genres = selected_genres
+        
+        # Display selected genres
+        if selected_genres:
+            st.success(f"Selected genres: {', '.join(selected_genres)}")
+        else:
+            st.info("No genres selected yet.")
+    
+    with tab3:
+        st.subheader("🎯 Your Personalized Recommendations")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("**Settings:**")
+            
+            n_recs = st.slider(
+                "Number of recommendations",
+                min_value=5,
+                max_value=20,
+                value=10
+            )
+            
+            # Recommendation method selection
+            method_options = {
+                "Smart Recommendations": "popularity_genre",
+                "Based on Your Ratings": "similarity",
+                "Genre-Based": "genre",
+                "Most Popular": "popularity"
+            }
+            
+            selected_method_name = st.selectbox(
+                "Recommendation Method",
+                list(method_options.keys()),
+                help="Choose how to generate recommendations"
+            )
+            method = method_options[selected_method_name]
+            
+            # Generate recommendations button
+            if st.button("🚀 Get My Recommendations", type="primary"):
+                with st.spinner("🎬 Generating your personalized recommendations..."):
+                    new_user_recommendations = get_new_user_recommendations(
+                        engine, 
+                        st.session_state.new_user_ratings,
+                        st.session_state.new_user_genres,
+                        n_recs,
+                        method
+                    )
+                    st.session_state.new_user_recs = new_user_recommendations
+        
+        with col2:
+            st.markdown("**Your Recommendations:**")
+            
+            # Display current selections
+            if st.session_state.new_user_ratings or st.session_state.new_user_genres:
+                with st.expander("📋 Your Profile Summary"):
+                    if st.session_state.new_user_ratings:
+                        st.write(f"**Movies Rated:** {len(st.session_state.new_user_ratings)}")
+                        avg_rating = np.mean(list(st.session_state.new_user_ratings.values()))
+                        st.write(f"**Average Rating:** {avg_rating:.1f} ⭐")
+                    
+                    if st.session_state.new_user_genres:
+                        st.write(f"**Preferred Genres:** {', '.join(st.session_state.new_user_genres)}")
+            
+            # Display recommendations
+            if hasattr(st.session_state, 'new_user_recs') and st.session_state.new_user_recs:
+                display_new_user_recommendations(st.session_state.new_user_recs)
+            else:
+                st.info("Configure your preferences and click 'Get My Recommendations' to see personalized movie suggestions!")
+
+def get_popular_movies_for_rating(ratings_df, movies_df, n_movies=20):
+    """Get popular movies for new users to rate."""
+    try:
+        # Get movies with most ratings (popular movies new users likely know)
+        movie_counts = ratings_df.groupby('movieId').size().sort_values(ascending=False)
+        popular_movie_ids = movie_counts.head(n_movies * 2).index.tolist()
+        
+        # Filter movies that exist in movies_df
+        valid_movie_ids = []
+        for movie_id in popular_movie_ids:
+            if movie_id in movies_df['movieId'].values:
+                valid_movie_ids.append(movie_id)
+                if len(valid_movie_ids) >= n_movies:
+                    break
+        
+        return valid_movie_ids
+    except:
+        # Fallback to first n movies
+        return movies_df['movieId'].head(n_movies).tolist() if movies_df is not None else []
+
+def get_new_user_recommendations(engine, user_ratings, preferred_genres, n_recommendations, method):
+    """Get recommendations for a new user."""
+    try:
+        if engine is not None:
+            return engine.get_new_user_recommendations(
+                user_preferences=user_ratings if user_ratings else None,
+                preferred_genres=preferred_genres if preferred_genres else None,
+                n_recommendations=n_recommendations,
+                method=method
+            )
+        else:
+            # Fallback recommendations
+            return generate_fallback_new_user_recommendations(
+                user_ratings, preferred_genres, n_recommendations
+            )
+    except Exception as e:
+        st.error(f"Error generating recommendations: {str(e)}")
+        return generate_fallback_new_user_recommendations(
+            user_ratings, preferred_genres, n_recommendations
+        )
+
+def generate_fallback_new_user_recommendations(user_ratings, preferred_genres, n_recommendations):
+    """Generate fallback recommendations for new users."""
+    np.random.seed(42)
+    
+    # Popular movies by genre
+    genre_movies = {
+        'Action': ['The Dark Knight', 'Mad Max: Fury Road', 'John Wick', 'Die Hard', 'Terminator 2'],
+        'Comedy': ['The Hangover', 'Superbad', 'Anchorman', 'Dumb and Dumber', 'Borat'],
+        'Drama': ['The Shawshank Redemption', 'Forrest Gump', 'The Godfather', 'Goodfellas', 'Pulp Fiction'],
+        'Romance': ['Titanic', 'The Notebook', 'Casablanca', 'When Harry Met Sally', 'Ghost'],
+        'Sci-Fi': ['The Matrix', 'Inception', 'Blade Runner', 'Star Wars', 'Interstellar'],
+        'Horror': ['The Shining', 'Halloween', 'A Nightmare on Elm Street', 'The Exorcist', 'Get Out'],
+        'Animation': ['Toy Story', 'The Lion King', 'Finding Nemo', 'Shrek', 'Up'],
+        'Thriller': ['Se7en', 'The Silence of the Lambs', 'North by Northwest', 'Psycho', 'Gone Girl']
+    }
+    
+    recommendations = []
+    used_titles = set()
+    
+    # If user has genre preferences, use those
+    if preferred_genres:
+        for genre in preferred_genres:
+            if genre in genre_movies:
+                for title in genre_movies[genre]:
+                    if title not in used_titles and len(recommendations) < n_recommendations:
+                        recommendations.append({
+                            'movieId': len(recommendations) + 1000,
+                            'title': title,
+                            'predicted_rating': np.random.uniform(4.0, 5.0),
+                            'reason': f"Popular {genre} movie matching your preferences",
+                            'genres': genre
+                        })
+                        used_titles.add(title)
+    
+    # Fill remaining with popular movies
+    all_movies = []
+    for genre_list in genre_movies.values():
+        all_movies.extend(genre_list)
+    
+    while len(recommendations) < n_recommendations and len(used_titles) < len(all_movies):
+        title = np.random.choice([m for m in all_movies if m not in used_titles])
+        recommendations.append({
+            'movieId': len(recommendations) + 1000,
+            'title': title,
+            'predicted_rating': np.random.uniform(3.8, 4.8),
+            'reason': "Highly rated popular movie",
+            'genres': 'Various'
+        })
+        used_titles.add(title)
+    
+    return recommendations
+
+def display_new_user_recommendations(recommendations):
+    """Display recommendations for new users."""
+    if not recommendations:
+        st.warning("No recommendations available.")
+        return
+    
+    for i, rec in enumerate(recommendations, 1):
+        with st.container():
+            col1, col2, col3 = st.columns([0.5, 3, 1])
+            
+            with col1:
+                st.markdown(f"**#{i}**")
+            
+            with col2:
+                title = rec.get('title', f"Movie ID: {rec.get('movieId', 'Unknown')}")
+                st.markdown(f"**{title}**")
+                
+                reason = rec.get('reason', 'Recommended for you')
+                st.caption(f"💡 {reason}")
+                
+                if 'genres' in rec or 'matching_genres' in rec:
+                    genres = rec.get('matching_genres', rec.get('genres', ''))
+                    if genres:
+                        if isinstance(genres, list):
+                            genres_str = ', '.join(genres)
+                        else:
+                            genres_str = str(genres)
+                        st.caption(f"🎭 {genres_str}")
+            
+            with col3:
+                rating = rec.get('predicted_rating', 0)
+                st.metric("Rating", f"{rating:.1f} ⭐")
+                
+                if 'rating_count' in rec:
+                    st.caption(f"{rec['rating_count']} ratings")
+            
+            st.divider()
+
 def main():
     """Main Streamlit application."""
     display_main_header()
@@ -539,10 +825,11 @@ def main():
     display_sidebar_info(ratings_df, movies_df, is_real_data)
     
     # Main navigation
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🏠 Overview", 
         "🎯 Recommendations", 
         "👤 User Profile", 
+        "🆕 New User", 
         "📈 Analytics"
     ])
     
@@ -562,6 +849,9 @@ def main():
         display_user_profile(ratings_df, movies_df, selected_user_profile)
     
     with tab4:
+        display_new_user_interface(engine, ratings_df, movies_df)
+    
+    with tab5:
         display_analytics_dashboard(ratings_df, movies_df)
     
     # Footer

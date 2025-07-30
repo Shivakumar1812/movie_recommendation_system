@@ -135,7 +135,422 @@ class MovieRecommendationEngine:
         if len(movie_info) == 0:
             return {'movieId': movie_id, 'title': f'Movie_{movie_id}', 'genres': 'Unknown'}
         
-        return movie_info.iloc[0].to_dict()
+        return movie_info
+    
+    def get_new_user_recommendations(
+        self, 
+        user_preferences: Dict[int, float] = None,
+        preferred_genres: List[str] = None,
+        n_recommendations: int = 10,
+        method: str = "popularity_genre"
+    ) -> List[Dict]:
+        """
+        Get recommendations for a completely new user.
+        
+        Args:
+            user_preferences: Dict of {movie_id: rating} for movies the user has rated
+            preferred_genres: List of preferred genres
+            n_recommendations: Number of recommendations to return
+            method: Recommendation method ('popularity', 'genre', 'popularity_genre', 'similarity')
+            
+        Returns:
+            List of movie recommendations with explanations
+        """
+        print(f"Generating recommendations for new user using method: {method}")
+        
+        if method == "popularity":
+            return self._get_popular_movie_recommendations(n_recommendations)
+        elif method == "genre" and preferred_genres:
+            return self._get_genre_based_recommendations(preferred_genres, n_recommendations)
+        elif method == "popularity_genre" and preferred_genres:
+            return self._get_popularity_genre_recommendations(preferred_genres, n_recommendations)
+        elif method == "similarity" and user_preferences:
+            return self._get_similarity_based_new_user_recommendations(user_preferences, n_recommendations)
+        else:
+            # Default: most popular movies
+            return self._get_popular_movie_recommendations(n_recommendations)
+    
+    def _get_popular_movie_recommendations(self, n_recommendations: int) -> List[Dict]:
+        """Get most popular movies based on rating count and average rating."""
+        if self.ratings_df is None:
+            return self._get_fallback_recommendations(n_recommendations)
+        
+        try:
+            # Calculate movie popularity metrics
+            movie_stats = self.ratings_df.groupby('movieId').agg({
+                'rating': ['count', 'mean']
+            }).round(2)
+            movie_stats.columns = ['rating_count', 'avg_rating']
+            
+            # Filter movies with minimum ratings
+            min_ratings = max(50, len(self.ratings_df) // 1000)  # Adaptive threshold
+            popular_movies = movie_stats[movie_stats['rating_count'] >= min_ratings]
+            
+            # Calculate popularity score (weighted average rating and count)
+            popular_movies = popular_movies.copy()  # Fix pandas warning
+            popular_movies['popularity_score'] = (
+                popular_movies['avg_rating'] * 0.7 + 
+                (popular_movies['rating_count'] / popular_movies['rating_count'].max()) * 5 * 0.3
+            )
+            
+            # Sort by popularity score
+            top_movies = popular_movies.nlargest(n_recommendations, 'popularity_score')
+            
+            recommendations = []
+            for movie_id, stats in top_movies.iterrows():
+                movie_info = self.get_movie_info(movie_id)
+                movie_info.update({
+                    'predicted_rating': stats['avg_rating'],
+                    'popularity_score': stats['popularity_score'],
+                    'rating_count': int(stats['rating_count']),
+                    'reason': f"Popular movie with {int(stats['rating_count'])} ratings (avg: {stats['avg_rating']:.1f}⭐)"
+                })
+                recommendations.append(movie_info)
+            
+            return recommendations
+            
+        except Exception as e:
+            print(f"Error in popular recommendations: {e}")
+            return self._get_fallback_recommendations(n_recommendations)
+    
+    def _get_fallback_recommendations(self, n_recommendations: int) -> List[Dict]:
+        """Generate fallback recommendations when other methods fail."""
+        fallback_movies = [
+            {"title": "The Shawshank Redemption", "rating": 4.5, "reason": "Highly rated classic"},
+            {"title": "The Godfather", "rating": 4.4, "reason": "Legendary crime drama"},
+            {"title": "The Dark Knight", "rating": 4.4, "reason": "Acclaimed superhero film"},
+            {"title": "Pulp Fiction", "rating": 4.3, "reason": "Iconic Tarantino masterpiece"},
+            {"title": "Forrest Gump", "rating": 4.2, "reason": "Beloved feel-good movie"},
+            {"title": "Inception", "rating": 4.2, "reason": "Mind-bending sci-fi thriller"},
+            {"title": "The Matrix", "rating": 4.1, "reason": "Revolutionary sci-fi action"},
+            {"title": "Goodfellas", "rating": 4.1, "reason": "Classic crime saga"},
+            {"title": "The Lord of the Rings", "rating": 4.0, "reason": "Epic fantasy adventure"},
+            {"title": "Se7en", "rating": 4.0, "reason": "Gripping psychological thriller"}
+        ]
+        
+        recommendations = []
+        for i, movie in enumerate(fallback_movies[:n_recommendations]):
+            recommendations.append({
+                'movieId': 1000 + i,
+                'title': movie['title'],
+                'predicted_rating': movie['rating'],
+                'reason': movie['reason']
+            })
+        
+        return recommendations
+    
+    def _get_genre_based_recommendations(self, preferred_genres: List[str], n_recommendations: int) -> List[Dict]:
+        """Get recommendations based on preferred genres."""
+        if self.movies_df is None or 'genres' not in self.movies_df.columns:
+            return self._get_popular_movie_recommendations(n_recommendations)
+        
+        try:
+            # Filter movies by preferred genres
+            genre_movies = []
+            for _, movie in self.movies_df.iterrows():
+                if pd.notna(movie.get('genres', '')) and movie['genres'] != '(no genres listed)':
+                    movie_genres = movie['genres'].split('|')
+                    if any(genre in movie_genres for genre in preferred_genres):
+                        genre_movies.append(movie['movieId'])
+            
+            if not genre_movies:
+                return self._get_popular_movie_recommendations(n_recommendations)
+            
+            # Get ratings for genre movies
+            if self.ratings_df is not None:
+                genre_ratings = self.ratings_df[self.ratings_df['movieId'].isin(genre_movies)]
+                
+                if len(genre_ratings) > 0:
+                    # Calculate stats for genre movies
+                    movie_stats = genre_ratings.groupby('movieId').agg({
+                        'rating': ['count', 'mean']
+                    }).round(2)
+                    movie_stats.columns = ['rating_count', 'avg_rating']
+                    
+                    # Filter by minimum ratings
+                    min_ratings = max(10, len(genre_ratings) // 100)
+                    good_movies = movie_stats[
+                        (movie_stats['rating_count'] >= min_ratings) & 
+                        (movie_stats['avg_rating'] >= 3.5)
+                    ]
+                    
+                    if len(good_movies) >= n_recommendations:
+                        top_movies = good_movies.nlargest(n_recommendations, 'avg_rating')
+                    else:
+                        top_movies = good_movies.nlargest(min(len(good_movies), n_recommendations), 'avg_rating')
+                        # Fill remaining with popular genre movies
+                        remaining = n_recommendations - len(top_movies)
+                        if remaining > 0:
+                            all_genre_movies = movie_stats.nlargest(remaining, 'rating_count')
+                            top_movies = pd.concat([top_movies, all_genre_movies]).drop_duplicates()
+                    
+                    recommendations = []
+                    for movie_id, stats in top_movies.iterrows():
+                        movie_info = self.get_movie_info(movie_id)
+                        movie_genres = self.movies_df[self.movies_df['movieId'] == movie_id]['genres'].iloc[0]
+                        matching_genres = [g for g in preferred_genres if g in movie_genres]
+                        
+                        movie_info.update({
+                            'predicted_rating': stats['avg_rating'],
+                            'rating_count': int(stats['rating_count']),
+                            'matching_genres': matching_genres,
+                            'reason': f"Matches your preferred genres: {', '.join(matching_genres)}"
+                        })
+                        recommendations.append(movie_info)
+                    
+                    return recommendations
+            
+            # Fallback: just return random genre movies
+            selected_movies = np.random.choice(genre_movies, min(n_recommendations, len(genre_movies)), replace=False)
+            recommendations = []
+            for movie_id in selected_movies:
+                movie_info = self.get_movie_info(movie_id)
+                movie_info['reason'] = f"Matches your preferred genres: {', '.join(preferred_genres)}"
+                recommendations.append(movie_info)
+            
+            return recommendations
+            
+        except Exception as e:
+            print(f"Error in genre recommendations: {e}")
+            return self._get_popular_movie_recommendations(n_recommendations)
+    
+    def _get_popularity_genre_recommendations(self, preferred_genres: List[str], n_recommendations: int) -> List[Dict]:
+        """Combine popularity and genre preferences."""
+        try:
+            # Get genre-based recommendations
+            genre_recs = self._get_genre_based_recommendations(preferred_genres, n_recommendations * 2)
+            
+            # Get popular recommendations
+            popular_recs = self._get_popular_movie_recommendations(n_recommendations)
+            
+            # Combine and remove duplicates
+            combined_movies = {}
+            
+            # Add genre recommendations with higher weight
+            for rec in genre_recs:
+                movie_id = rec['movieId']
+                score = rec.get('predicted_rating', 3.5) * 1.2  # Boost genre matches
+                combined_movies[movie_id] = {**rec, 'combined_score': score}
+            
+            # Add popular recommendations
+            for rec in popular_recs:
+                movie_id = rec['movieId']
+                if movie_id not in combined_movies:
+                    score = rec.get('predicted_rating', 3.5)
+                    combined_movies[movie_id] = {**rec, 'combined_score': score}
+                else:
+                    # Boost score if it's both popular and matches genre
+                    combined_movies[movie_id]['combined_score'] += 0.5
+                    combined_movies[movie_id]['reason'] = "Popular movie that matches your preferred genres"
+            
+            # Sort by combined score and return top recommendations
+            sorted_recs = sorted(combined_movies.values(), key=lambda x: x['combined_score'], reverse=True)
+            return sorted_recs[:n_recommendations]
+            
+        except Exception as e:
+            print(f"Error in popularity-genre recommendations: {e}")
+            return self._get_popular_movie_recommendations(n_recommendations)
+    
+    def _get_similarity_based_new_user_recommendations(
+        self, 
+        user_preferences: Dict[int, float], 
+        n_recommendations: int
+    ) -> List[Dict]:
+        """Get recommendations based on user's initial ratings using similarity."""
+        if not user_preferences or self.ratings_df is None:
+            return self._get_popular_movie_recommendations(n_recommendations)
+        
+        try:
+            # Find similar users based on initial preferences
+            similar_users = []
+            
+            for user_id in self.ratings_df['userId'].unique():
+                user_ratings = self.ratings_df[self.ratings_df['userId'] == user_id]
+                user_movies = set(user_ratings['movieId'].tolist())
+                
+                # Calculate overlap with new user's preferences
+                common_movies = set(user_preferences.keys()) & user_movies
+                
+                if len(common_movies) >= 2:  # Need at least 2 movies in common
+                    # Calculate similarity (simplified Pearson correlation)
+                    new_user_ratings = [user_preferences[mid] for mid in common_movies]
+                    existing_user_ratings = []
+                    
+                    for mid in common_movies:
+                        rating = user_ratings[user_ratings['movieId'] == mid]['rating'].iloc[0]
+                        existing_user_ratings.append(rating)
+                    
+                    if len(new_user_ratings) > 1:
+                        correlation = np.corrcoef(new_user_ratings, existing_user_ratings)[0, 1]
+                        if not np.isnan(correlation) and correlation > 0.3:
+                            similar_users.append((user_id, correlation, len(common_movies)))
+            
+            if not similar_users:
+                # No similar users found, fall back to popular recommendations
+                return self._get_popular_movie_recommendations(n_recommendations)
+            
+            # Sort by similarity and number of common movies
+            similar_users.sort(key=lambda x: (x[1], x[2]), reverse=True)
+            top_similar_users = similar_users[:20]  # Use top 20 similar users
+            
+            # Get recommendations from similar users
+            recommended_movies = {}
+            
+            for user_id, similarity, _ in top_similar_users:
+                user_ratings = self.ratings_df[
+                    (self.ratings_df['userId'] == user_id) & 
+                    (~self.ratings_df['movieId'].isin(user_preferences.keys()))
+                ]
+                
+                # Only consider highly rated movies
+                good_ratings = user_ratings[user_ratings['rating'] >= 4.0]
+                
+                for _, rating_row in good_ratings.iterrows():
+                    movie_id = rating_row['movieId']
+                    rating = rating_row['rating']
+                    
+                    if movie_id not in recommended_movies:
+                        recommended_movies[movie_id] = []
+                    
+                    weighted_rating = rating * similarity
+                    recommended_movies[movie_id].append(weighted_rating)
+            
+            # Calculate average weighted ratings
+            movie_scores = {}
+            for movie_id, ratings in recommended_movies.items():
+                if len(ratings) >= 2:  # Movie recommended by at least 2 similar users
+                    movie_scores[movie_id] = np.mean(ratings)
+            
+            # Sort by score and get top recommendations
+            sorted_movies = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
+            
+            recommendations = []
+            for movie_id, score in sorted_movies[:n_recommendations]:
+                movie_info = self.get_movie_info(movie_id)
+                movie_info.update({
+                    'predicted_rating': min(5.0, max(0.5, score)),
+                    'similarity_score': score,
+                    'reason': f"Recommended by users with similar taste (score: {score:.2f})"
+                })
+                recommendations.append(movie_info)
+            
+            # Fill with popular recommendations if needed
+            if len(recommendations) < n_recommendations:
+                remaining = n_recommendations - len(recommendations)
+                popular_recs = self._get_popular_movie_recommendations(remaining * 2)
+                
+                # Add popular movies not already recommended
+                recommended_ids = {rec['movieId'] for rec in recommendations}
+                for rec in popular_recs:
+                    if rec['movieId'] not in recommended_ids and len(recommendations) < n_recommendations:
+                        rec['reason'] = "Popular movie (filled recommendation)"
+                        recommendations.append(rec)
+            
+            return recommendations[:n_recommendations]
+            
+        except Exception as e:
+            print(f"Error in similarity-based new user recommendations: {e}")
+            return self._get_popular_movie_recommendations(n_recommendations)
+    
+    def create_new_user_profile(
+        self, 
+        initial_ratings: Dict[int, float],
+        preferred_genres: List[str] = None
+    ) -> Dict:
+        """
+        Create a profile for a new user and get initial recommendations.
+        
+        Args:
+            initial_ratings: Dict of {movie_id: rating} for initial ratings
+            preferred_genres: List of preferred genres
+            
+        Returns:
+            Dict containing user profile and recommendations
+        """
+        print(f"Creating profile for new user with {len(initial_ratings)} initial ratings")
+        
+        # Analyze user's initial ratings
+        if initial_ratings:
+            avg_rating = np.mean(list(initial_ratings.values()))
+            rating_variance = np.var(list(initial_ratings.values()))
+            
+            # Determine user's rating style
+            if rating_variance < 0.5:
+                rating_style = "Consistent rater"
+            elif rating_variance > 2.0:
+                rating_style = "Diverse taste"
+            else:
+                rating_style = "Balanced rater"
+            
+            # Determine user's overall sentiment
+            if avg_rating >= 4.0:
+                sentiment = "Generous rater"
+            elif avg_rating <= 3.0:
+                sentiment = "Critical rater"
+            else:
+                sentiment = "Moderate rater"
+        else:
+            avg_rating = 3.5
+            rating_style = "Unknown"
+            sentiment = "Unknown"
+        
+        # Infer genres from initial ratings if not provided
+        inferred_genres = []
+        if initial_ratings and self.movies_df is not None:
+            genre_ratings = {}
+            for movie_id, rating in initial_ratings.items():
+                movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
+                if not movie_info.empty and 'genres' in movie_info.columns:
+                    genres_str = movie_info.iloc[0]['genres']
+                    if pd.notna(genres_str) and genres_str != '(no genres listed)':
+                        for genre in genres_str.split('|'):
+                            if genre not in genre_ratings:
+                                genre_ratings[genre] = []
+                            genre_ratings[genre].append(rating)
+            
+            # Find genres with high average ratings
+            for genre, ratings in genre_ratings.items():
+                if len(ratings) >= 1 and np.mean(ratings) >= 4.0:
+                    inferred_genres.append(genre)
+        
+        # Use provided genres or inferred ones
+        final_genres = preferred_genres if preferred_genres else inferred_genres[:5]
+        
+        # Get different types of recommendations
+        recommendations = {}
+        
+        if initial_ratings:
+            recommendations['similarity_based'] = self.get_new_user_recommendations(
+                user_preferences=initial_ratings,
+                n_recommendations=10,
+                method="similarity"
+            )
+        
+        if final_genres:
+            recommendations['genre_based'] = self.get_new_user_recommendations(
+                preferred_genres=final_genres,
+                n_recommendations=10,
+                method="popularity_genre"
+            )
+        
+        recommendations['popular'] = self.get_new_user_recommendations(
+            n_recommendations=10,
+            method="popularity"
+        )
+        
+        # Create user profile
+        user_profile = {
+            'initial_ratings': initial_ratings,
+            'preferred_genres': final_genres,
+            'inferred_genres': inferred_genres,
+            'average_rating': avg_rating,
+            'rating_style': rating_style,
+            'sentiment': sentiment,
+            'recommendations': recommendations,
+            'profile_created': pd.Timestamp.now().isoformat()
+        }
+        
+        return user_profile.iloc[0].to_dict()
     
     def recommend_movies_similarity(self, user_id: int, method: str = 'item_based', 
                                   n_recommendations: int = 10) -> List[Dict[str, any]]:
