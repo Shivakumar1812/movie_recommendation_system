@@ -255,9 +255,9 @@ The system handles new users through several intelligent approaches:
 
 For questions, suggestions, or collaboration opportunities:
 
-- 📫 **Email**: skg.13.edu@gmail.com
-- 💼 **LinkedIn**: [skg1312](https://linkedin.com/in/skg1312)
-- 🐙 **GitHub**: [skg1312](https://github.com/skg1312)
+- 📫 **Email**: taruntejakarimi@gmail.com
+- 💼 **LinkedIn**: [taruntejakarimi](https://www.linkedin.com/in/tarun-teja-karimi-689785214/)
+- 🐙 **GitHub**: [tarunkarimi](https://github.com/tarunkarimi)
 
 ---
 
