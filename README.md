@@ -255,10 +255,7 @@ The system handles new users through several intelligent approaches:
 
 For questions, suggestions, or collaboration opportunities:
 
-- 📫 **Email**: taruntejakarimi@gmail.com
-- 💼 **LinkedIn**: [taruntejakarimi](https://www.linkedin.com/in/tarun-teja-karimi-689785214/)
-- 🐙 **GitHub**: [tarunkarimi](https://github.com/tarunkarimi)
-
+- 📫 **Email**: bollashivakumar8@gmail.com
 ---
 
 ⭐ **If you found this project helpful, please consider giving it a star!** ⭐
